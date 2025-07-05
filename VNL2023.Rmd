@@ -1,0 +1,814 @@
+---
+title: "Đồ án kết thúc học phần"
+author: "22110012 - Hữu Ân  \n\n22110059 - Hồng Hiên\n"
+date: "01-07-2025"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: false
+    self_contained: true
+    theme: flatly
+    mathjax: default
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+---
+
+```{css, echo=FALSE}
+.tocify {
+  background-color: #f0f8ff;  /* Màu nền sidebar (Alice Blue) */
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid #cce;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+
+.tocify-header {
+  color: #004085; /* Màu tiêu đề TOC */
+  font-weight: bold;
+}
+
+.tocify-item.active {
+  background-color: #d1ecf1; /* Màu khi mục đang active */
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Giới thiệu:
+Tập tin "VNL2023.csv" là bộ dữ liệu về các cầu thủ bóng chuyền trong Giải bóng chuyền quốc gia năm 2023 (Volleyball National League in 2023), được lấy từ Kaggle 
+
+<https://www.kaggle.com/datasets/yeganehbavafa/vnl-men-2023>. 
+
+Bộ dữ gồm 131 quan
+trắc và 10 biến sau:
+
+1. Player: Tên của vận động viên
+
+2. Country: Quốc tịch của vận động viên
+
+3. Age: Tuổi của vận động viên
+
+4. Attack: Trung bình tổng thể của vận động viên trong mỗi trận đấu khi tham gia khâu tấn công
+
+5. Block (Chắn bóng): Trung bình tổng thể của vận động viên trong mỗi trận đấu khi tham gia phòng thủ trên lưới
+
+6. Serve (Phát bóng): Trung bình khả năng phát bóng của từng vận động viên trong trận đấu
+
+7. Set (Chuyền bóng): Trung bình số lần chuyền thành công, lỗi chuyền và số lần chuyền thử trong mỗi pha bóng
+
+8. Dig (Phòng thủ): Trung bình số lần cứu bóng, lỗi cứu bóng và đỡ bóng từ đối phương tấn công
+
+9. Receive (Đỡ bóng): Trung bình của các lần chạm được bóng khi phòng thủ thành công và pha bóng vẫn còn tiếp tục
+
+10. Position (Vị trí): Vị trí đại diện cho vị trí chơi của vận động viên và bao gồm 5 vị
+trí cơ bản sau đây
+
+    – OH (Outside Hitter): Chủ công ngoài
+  
+    – OP (Opposite): Đối chuyền
+  
+    – MB (Middle Blocker): Trung phong chắn bóng
+  
+    – S (Setter): Chuyền hai
+  
+    – L (Libero): cầu thủ chuyên phòng thủ
+
+
+## Vấn đề nghiên cứu:
+
+"Phân tích sự khác biệt về hiệu suất thi đấu giữa các vị trí (Position) trong bóng chuyền nam VNL 2023 và xác định các yếu tố chính ảnh hưởng đến hiệu suất của từng vị trí." 
+
+## Lý do chọn đề tài:
+
+### Tính ứng dụng cao:
+
+- Huấn luyện viên có thể tối ưu hóa chiến thuật dựa trên điểm mạnh/yếu của từng vị trí.
+
+- Cầu thủ trẻ có thể định hướng tập trung vào kỹ năng quan trọng nhất cho vị trí của mình.
+
+### Phù hợp phương pháp đa biến:
+
+- Có thể kết hợp MANOVA (so sánh nhiều biến hiệu suất giữa các nhóm) và PCA (rút gọn biến để tìm yếu tố chính).
+  
+
+## Phương pháp triển khai:
+### Bước 1: MANOVA
+
+- Kiểm tra giả định (multivariate normality, homogeneity of covariance).
+
+- Nếu MANOVA có ý nghĩa (p < 0.05), chạy tiếp ANOVA cho từng biến hiệu suất và post-hoc test (Tukey HSD) để xác định cặp vị trí khác biệt.
+
+### Bước 2: PCA
+
+- Chuẩn hóa dữ liệu $\to$ Phân tích thành phần chính $\to$ Chọn số thành phần dựa trên scree plot hoặc eigenvalue > 1.
+
+- Diễn giải thành phần dựa trên factor loadings (|loading| > 0.5).
+
+- Vẽ biplot để trực quan hóa mối quan hệ giữa cầu thủ, vị trí và thành phần.
+
+### Bước 3: K-means clustering
+
+- K-means clustering trên các thành phần PCA để phát hiện nhóm cầu thủ tiềm năng.
+
+
+## Nhập dữ liệu: 
+```{r}
+vnl_data <- read.csv("VNL2023.csv", header = TRUE, stringsAsFactors = FALSE)
+head(vnl_data)
+str(vnl_data)
+summary(vnl_data)
+```
+  
+
+```{r}
+# Thống kê trung bình các kỹ năng theo Position
+library(dplyr)
+vnl_summary <- vnl_data %>%
+  group_by(Position) %>%
+  summarise(
+    Avg_Age = mean(Age, na.rm = TRUE),
+    Avg_Attack = mean(Attack, na.rm = TRUE),
+    Avg_Block = mean(Block, na.rm = TRUE),
+    Avg_Serve = mean(Serve, na.rm = TRUE),
+    n_Players = n()
+  )
+print(vnl_summary)
+```
+  
+**Trực quan hóa dữ liệu:**
+```{r}
+# Histogram cho biến Age
+hist(vnl_data$Age, main = "Phân phối Tuổi của cầu thủ", xlab = "Tuổi", col = "lightblue")
+```
+
+**Nhận xét:**
+
+1. **Phân bố độ tuổi:**
+
+  - Tập trung chủ yếu ở khoảng 20–30 tuổi, phù hợp với thể lực đỉnh cao của vận động viên.
+  
+  - Ít cầu thủ trên 35 tuổi, có thể do yêu cầu tốc độ và sức bền của môn bóng chuyền.
+  
+  - Đỉnh phân phối quanh 25 tuổi, cho thấy đây là độ tuổi phổ biến nhất.
+  
+2. **Ý nghĩa:**
+
+  - Các đội tuyển có xu hướng ưu tiên cầu thủ trẻ (20–30 tuổi) để đảm bảo sự nhanh nhẹn và bền bỉ.
+  
+  - Cầu thủ trên 35 tuổi thường giữ vai trò chuyên biệt (ví dụ: Libero hoặc Setter) dựa vào kinh nghiệm.
+
+
+```{r}
+# Boxplot so sánh Attack theo Position
+boxplot(Attack ~ Position, data = vnl_data, 
+        main = "Hiệu suất Tấn công theo Vị trí",
+        xlab = "Vị trí", ylab = "Điểm Attack",
+        col = c("red", "blue", "green", "yellow", "purple"))
+```
+
+**Nhận xét:**
+
+1. **Khác biệt rõ rệt giữa các vị trí:**
+
+  - OP (Opposite) và OH (Outside Hitter) có điểm Attack cao nhất (trung bình ~8–10), đúng với vai trí chủ công tấn công.
+  
+  - MB (Middle Blocker) có Attack trung bình (~4–5), do tập trung vào chắn bóng.
+  
+  - L (Libero) và S (Setter) gần như không tham gia tấn công (Attack $\approx$ 0).
+  
+2. **Độ phân tán dữ liệu:**
+
+  - OH/OP có biến động lớn về Attack, phản ánh sự đa dạng trong khả năng tấn công của từng cầu thủ.
+  
+  - MB có phân phối đồng đều hơn, cho thấy vai trò ổn định trong đội hình.
+  
+ 
+**Kiểm tra missing values:**
+```{r}
+colSums(is.na(vnl_data))
+```
+  
+
+**Kiểm tra giá trị ngoại lai:**
+```{r}
+# Vẽ boxplot cho các biến định lượng
+boxplot(vnl_data[, c("Attack", "Block", "Serve", "Age")], 
+        main = "Boxplot các biến định lượng",
+        col = c("lightblue", "salmon", "lightgreen", "gold"))
+```
+  
+**Nhận xét các giá trị ngoại lai:**
+
+  - Biến **Attack** (Tấn công): các giá trị ngoại lai có thể do khả năng tấn công vượt trội của một số cầu thủ chủ công (OH/OP) vì vậy sẽ  giữ lại vì đây là giá trị thực, phản ánh năng lực đặc biệt. 
+  
+  - Biến **Block** (Chắn bóng): các giá trị ngoại lai thường là các Middle Blocker (MB) xuất sắc (ví dụ: Loser Agustin với 4.08 điểm Block) với vai trò chuyên chắn bóng của vị trí MB. Vì vậy không xóa, vì outliers thể hiện đặc thù vị trí.
+  
+  - Biến **Serve** (Phát bóng): Thể hiện kỹ năng phát bóng ăn điểm trực tiếp (ace) của một số cầu thủ .Ví dụ: Abdel-Aziz Nimir (2.08 điểm Serve). Vì đây là giá trị hợp lệ nên giữ nguyên. 
+  
+  - Biến **Age** (Tuổi): Phản ánh vị trí L/S thường có tuổi nghề cao hơn. Cách xử lý: Không loại bỏ, vì phản ánh đúng thực tế (kinh nghiệm quan trọng hơn thể lực ở một số vị trí).
+  
+## MANOVA
+
+### Kiểm định phân phối chuẩn đa biến 
+
+Thực hiện Shapiro-Wilk test + Q-Q plot.
+
+```{r}
+library(carData)
+library(car)
+# Chọn các biến phụ thuộc
+dependent_vars <- vnl_data[, c("Attack", "Block", "Serve", "Dig", "Receive")]
+
+# Kiểm tra Shapiro-Wilk cho từng biến
+shapiro_results <- sapply(dependent_vars, shapiro.test)
+print(shapiro_results)
+```
+**Kết quả Shapiro-Wilk:**
+
+  - Tất cả các biến **(Attack, Block, Serve, Dig, Receive)** đều có p-value < 0.05 $\to$ Bác bỏ giả thuyết $H_0$ (dữ liệu không tuân theo phân phối chuẩn).
+  
+
+```{r}
+# Vẽ Q-Q plot
+par(mfrow = c(2, 3))  # Đặt layout cho đồ thị
+for (col in colnames(dependent_vars)) {
+  qqPlot(dependent_vars[[col]], main = paste("Q-Q Plot for", col))
+}
+```
+
+### Kiểm định ma trận hiệp phương sai đồng nhất (Homogeneity of Covariance) 
+
+Sử dụng Box's M test.
+
+```{r}
+library(broom)
+library(heplots)
+boxM_result <- boxM(dependent_vars, vnl_data$Position)
+print(boxM_result)
+```
+**Kết quả:**  **p-value** < 2.2e-16: Bác bỏ hoàn toàn giả thuyết $H_0$ (các nhóm có ma trận hiệp phương sai khác nhau).
+
+**Nhận xét kết quả kiểm định:**
+
+1. **Kiểm định phân phối chuẩn**
+
+  - Kết quả kiểm định Shapiro-Wilk cho thấy tất cả các biến phụ thuộc (Attack, Block, Serve, Dig, Receive) đều vi phạm giả định phân phối chuẩn (p < 0.001), trong đó biến Receive thể hiện sự lệch chuẩn nghiêm trọng nhất (p = 4.22e-12). Điều này phù hợp với đặc thù dữ liệu thể thao, nơi hiệu suất của vận động viên thường phân bố không đối xứng.
+  
+2. **Kiểm định đồng nhất ma trận hiệp phương sai**
+
+- Kiểm định Box's M cho giá trị p < 2.2e-16 $(\chi^2 =\infty)$, bác bỏ mạnh mẽ giả thuyết về sự đồng nhất ma trận hiệp phương sai giữa các nhóm vị trí. Sự khác biệt này xuất phát từ bản chất khác biệt giữa các vị trí:
+
+    - Vị trí tấn công (OH, OP) có phương sai lớn về Attack và Serve
+
+    - Vị trí phòng thủ (L) tập trung chủ yếu ở Dig và Receive
+
+Mặc dù vi phạm hai giả định quan trọng, tiếp theo sẽ tiến hành:
+
+  - **MANOVA** với **Pillai's trace** do tính robust với cỡ mẫu lớn (n = 131) và vi phạm giả định vừa phải
+  
+  - Kiểm định phi tham số **PERMANOVA** để kiểm chứng.
+
+### MANOVA với Pillai's Trace 
+
+```{r}
+# Load thư viện cần thiết
+library(car)
+
+# Thực hiện MANOVA
+manova_model <- manova(cbind(Attack, Block, Serve, Dig, Receive) ~ Position, 
+                      data = vnl_data)
+
+# Sử dụng Pillai's trace (khuyến nghị khi vi phạm đồng nhất hiệp phương sai)
+summary(manova_model, test = "Pillai")
+
+# Xuất bảng ANOVA riêng lẻ nếu MANOVA có ý nghĩa
+if (summary(manova_model)$stats["Position", "Pr(>F)"] < 0.05) {
+  cat("\nANOVA riêng lẻ cho từng biến:\n")
+  print(summary.aov(manova_model))
+}
+```
+**Nhận xét kết quả:**
+
+ - Giá trị thống kê:
+
+    + Pillai's trace = 2.2024 (rất lớn)
+
+    + F = 30.631, p < 0.001 $\to$ Khác biệt rất có ý nghĩa giữa các vị trí.
+    
+  - ANOVA riêng lẻ:
+
+| Biến phụ thuộc | Giá trị F | p-value   | Ý nghĩa thống kê |
+|---------------:|----------:|----------:|----------------------:|
+| **Attack**     | 69.356    | < 2.2e-16 ***   | Khác biệt cực kỳ mạnh              |
+| **Block**      | 24.221    | 7.037e-15 ***   | Khác biệt rất mạnh              |
+| **Serve**      | 14.587    | 8.114e-10 ***   | Khác biệt mạnh              |
+| **Dig**        | 49.245    | < 2.2e-16 ***   | Khác biệt cực kỳ mạnh              |
+| **Receive**    | 86.975    | < 2.2e-16 ***   | Khác biệt cực kỳ mạnh              | 
+
+$\to$ Tất cả biến đều khác biệt đáng kể (p < 0.001), đặc biệt là **Attack** và **Receive**.
+
+### PERMANOVA (Kiểm định phi tham số)
+
+```{r}
+library(permute)
+library(vegan)
+
+# Tính ma trận khoảng cách Euclidean
+dist_matrix <- dist(vnl_data[, c("Attack", "Block", "Serve", "Dig", "Receive")])
+
+# Thực hiện PERMANOVA với 999 hoán vị
+set.seed(123)
+permanova_result <- adonis2(dist_matrix ~ Position, 
+                           data = vnl_data, 
+                           permutations = 999,
+                           method = "euclidean")
+
+# Xuất kết quả
+print(permanova_result)
+```
+
+**Nhận xét kết quả:**
+
+  - Giá trị thống kê:
+  
+     + $R^2=0.67465$ $\to$ Vị trí giải thích 67.47% biến thiên dữ liệu (ảnh hưởng rất lớn). 
+     
+     + $F = 65.319, p = 0.001 \to$ Khác biệt rất có ý nghĩa giữa các vị trí. 
+     
+### So sánh hai phương pháp:
+
+| Tiêu chí       | MANOVA                  | PERMANOVA |
+|---------------:|------------------------:|------------------------------:|
+| p-value        | < 2.2e-16 (mạnh hơn)    | 0.001 (vẫn rất có ý nghĩa)   |
+| Độ mạnh        | $F = 30.631$            | $F = 65.319$                   |
+| Giải thích     | Phân tích phương sai    | Phân tích khoảng cách       | 
+| Ưu điểm        | Dễ diễn giải            |Không cần giả định chuẩn        | 
+     
+**Nhận xét:** Cả hai đều nhất quán: Vị trí ảnh hưởng mạnh đến hiệu suất.
+
+**Phân tích từng biến:**
+
+1. **Attack (Tấn công)**: 
+   
+  - $F-value$ cao nhất $(69.356)$ $\to$ OH/OP có hiệu suất tấn công vượt trội.
+
+  - Phù hợp với vai trò chủ công của các vị trí này.
+  
+2. **Receive (Đỡ bóng)**:
+
+  - $F-value (86.975)$ $\to$ Libero (L) thể hiện rõ nét nhất.
+  
+  - Cho thấy sự chuyên môn hóa cao của vị trí này.
+
+3. **Block (Chắn bóng)**:
+
+  - $F = 24.221$ $\to$ MB có ưu thế rõ rệt, nhưng không lớn như Attack/Receive.
+  
+  - Phản ánh vai trò phòng thủ tại lưới.
+  
+4. **Dig (Cứu bóng)**:
+
+  - $F = 49.245$ $\to$ L và MB tham gia nhiều nhất.
+  
+  - Khác biệt lớn giữa vị trí phòng ngự và tấn công. 
+
+### Kết luận:
+
+Cả 2 kiểm định đều cho ta kết quả:
+
+ - **MANOVA (Pillai's trace):**
+ 
+   + $Pillai = 2.202, F = 30.631, p < 2.2e-16$
+   
+ - **PERMANOVA:**
+ 
+   + $R^2 = 67.47\%, F = 65.319, p = 0.001$
+
+Vì cả hai phương pháp đều khẳng định sự khác biệt rõ rệt (độ tin cậy $> 99.9\%$). Nên ta có kết luận: **CÓ**, tồn tại khác biệt rất có ý nghĩa (p < 0.001) giữa 5 vị trí (OH, OP, MB, S, L).
+
+Dựa trên **ANOVA riêng lẻ** và **giá trị trung bình từng nhóm**, các vị trí nổi bật như sau:
+
+| Kỹ năng        | Vị trí vượt trội         | Giá trị trung bình | So sánh       |  p-value       | 
+|:---------------|:---------------------|:-------------|:--------------------------------|:------------------|
+| **Attack**        | OP (Opposite)    | 9.33 điểm   | OP > OH > MB > S $\approx$ L $\approx$ 0 |  < 2.2e-16 ***  |
+| **Block**        | MB (Middle Blocker)   | 1.53 điểm        | MB > OP $\approx$ OH > S > L $\approx$ 0  |  7.04e-15 ***  | 
+| **Serve**     | OP (Opposite)    | 0.80 điểm       | OP $\approx$ OH > MB > S > L $\approx$ 0  |  8.11e-10 ***  |
+| **Dig**        | L (Libero)          | 7.09 điểm        | L > OH > MB > OP $\approx$ S $\approx$ 0   |  < 2.2e-16 ***  | 
+| **Receive**        | L (Libero)     |4.12 điểm       | L ≫ OH > MB > OP $\approx$ S $\approx$ 0  |   < 2.2e-16 ***  |
+     
+     
+ - **OP (Opposite):**
+ 
+   + Vượt trội **Attack** (9.33) và Serve (0.80) $\to$ Vai trò chủ công chính.
+   
+ - **MB (Middle Blocker):**
+ 
+   + **Block** cao nhất (1.53) $\to$ Chuyên gia chắn bóng.
+   
+ - **L (Libero):**
+ 
+   + **Dig** (7.09) và **Receive** (4.12) đứng đầu $\to$ Cầu thủ phòng thủ đa năng.
+   
+ - **OH (Outside Hitter):**
+ 
+   + Hiệu suất cân bằng, thiên về **Attack** (8.38) và **Dig** (5.85).
+   
+ - **S (Setter):**
+ 
+   + Không nổi bật ở kỹ năng nào $\to$ Tập trung chuyền bóng (không đo lường trong dữ liệu).
+
+
+```{r}
+library(ggplot2)
+# biểu đồ Attack theo Position
+ggplot(vnl_data, aes(x = Position, y = Attack, fill = Position)) +
+  geom_boxplot() +
+  labs(title = "Hiệu suất Attack theo Vị trí", y = "Điểm Attack") +
+  theme_minimal()
+```
+
+Từ đồ thị trên, ta có:
+
+ - OP và OH có phân phối Attack cao hơn hẳn. 
+ 
+ - MB/L/S gần như không đóng góp tấn công. 
+
+**Từ phương pháp tham số (MANOVA) và phi tham số (PERMANOVA), ta có kết luận cuối cùng:**
+
+1. **Khác biệt giữa các nhóm:**
+
+  - Tất cả 5 vị trí có hiệu suất khác biệt rõ rệt (p < 0.001).
+  
+  - OP và OH thiên về tấn công, MB và L thiên về phòng thủ.
+  
+2. **Ứng dụng thực tế:**
+
+  - Huấn luyện viên nên phân công vị trí dựa trên thế mạnh:
+  
+    + OP/OH Tập trung vào Attack/Serve.
+    
+    + L/MB rèn luyện Dig/Block/Receive. 
+  
+  - Tuyển chọn cầu thủ trẻ: Đánh giá đúng tiềm năng theo từng vị trí. 
+
+
+## PCA 
+
+```{r}
+# Chọn các biến định lượng cần phân tích
+pca_data <- vnl_data[, c("Attack", "Block", "Serve", "Dig", "Receive")]
+# Kiểm tra missing values
+sum(is.na(pca_data))  
+```
+**Kiểm tra KMO và Bartlett's test để đánh giá độ phù hợp của PCA**
+
+1. **Kiểm định KMO (Kaiser-Meyer-Olkin)**
+
+**Mục đích:** Đánh giá mức độ phù hợp của dữ liệu cho PCA (liệu các biến có đủ tương quan để gom nhóm thành thành phần chính không).
+
+**Giả thuyết:**
+
+ - $H_0$ : Dữ liệu không phù hợp để phân tích PCA (các biến không đủ tương quan với nhau).
+
+ - $H_1$ : Dữ liệu phù hợp để phân tích PCA (có đủ tương quan giữa các biến).
+
+2. **Kiểm định Bartlett's Test of Sphericity**
+
+**Mục đích:** Kiểm tra xem ma trận tương quan có phải là ma trận đơn vị hay không (nếu là ma trận đơn vị, PCA không có ý nghĩa).
+
+**Giả thuyết:**
+
+ - $H_0$ : Ma trận tương quan là ma trận đơn vị (không có sự tương quan giữa các biến $\to$ không nên dùng PCA).
+
+ - $H_1$ : Ma trận tương quan không phải ma trận đơn vị (có sự tương quan đáng kể giữa các biến $\to$ có thể dùng PCA).
+
+```{r}
+library(psych)
+KMO(pca_data)  # KMO > 0.6 là chấp nhận được
+cortest.bartlett(cor(pca_data), n = nrow(pca_data))  # p < 0.05
+```
+**Kết quả:**
+
+  - Overall MSA $= 0.52 > 0.5$ nên có thể chấp nhận $H_1$, nhưng ở mức độ trung bình.
+  
+  - p-value $= 1.56e-44 \approx 0$ $\to$ Bác bỏ $H_0$ (chấp nhận $H_1$). Dữ liệu có đủ tương quan để thực hiện PCA. 
+
+**Nhận xét:**
+
+  - Bartlett's Test cho thấy PCA có thể áp dụng (do có tương quan giữa các biến).
+  
+  - KMO ở mức trung bình (0.52). 
+  
+  - Ta thấy rằng **Attack** (MSA=0.48) và **Receive** (MSA=0.45) có MSA < 0.5 nhưng ta sẽ giữ lại 2 biến này để tiếp tục PCA. 
+
+**Chuẩn hóa dữ liệu:**
+
+```{r}
+pca_result <- prcomp(pca_data, scale = TRUE)
+summary(pca_result)
+```
+
+**Phân tích eigenvalue và variance:**
+
+```{r}
+eigenvalues <- pca_result$sdev^2
+variance_percent <- eigenvalues / sum(eigenvalues) * 100
+
+data.frame(
+  PC = paste0("PC", 1:length(eigenvalues)),
+  Eigenvalue = round(eigenvalues, 2),
+  Variance_Percent = round(variance_percent, 2),
+  Cumulative_Percent = round(cumsum(variance_percent), 2)
+)
+```
+
+**Chọn số thành phần:**
+
+Sử dụng tiêu chí Kaiser (Eigenvalue > 1):
+
+```{r}
+selected_pcs <- sum(eigenvalues > 1)
+cat("Số thành phần chọn theo Kaiser:", selected_pcs)
+```
+
+Từ kết quả trên, ta thấy các thành phần 1 và 2 có phương sai lớn hơn 1. Theo tiêu chuẩn của Kaiser, ta nên giữ lại các thành phần chính này (PC1, PC2).
+
+**Vẽ Scree plot:**
+```{r}
+library(ggplot2)
+library(factoextra)
+fviz_eig(pca_result, addlabels = TRUE, ylim = c(0, 50))
+```
+
+Qua đồ thị Scree-plot ta thấy sự thay đổi rõ ràng nhất về độ dốc ở thành phần chính thứ ba, PC3, đó là "khuỷa tay" của đồ thị Scree-plot. Do đó, ta có thể giữ lại hai thành phần chính đầu tiên (PC1 và PC2).
+
+ **Diễn giải các thành phần:**
+
+```{r}
+loadings <- pca_result$rotation[, 1:selected_pcs]
+print(loadings)
+```
+
+Kết quả trên cho thấy thành phần chính thứ nhất là tổ hợp tuyến tính của các biến:
+\[PC1= -0.529 * Attack -0.500 * Block -0.535 * Serve -0.537 * Dig + 0.227 * Receive\]
+
+và thành phần chính thứ hai:
+\[PC2= -0.401 * Attack +0.136 * Block -0.363 * Serve + 0.363 * Dig -0.633 * Receive\]
+
+| Biến        | PC1   | PC2   | Diễn giải       |  Cảnh báo MSA       | 
+|:---------------|:---------------------|:-------------|:--------------------------------|:------------------|
+| **Attack**        | -0.529    | -0.401   | Đóng góp mạnh vào PC1 (tấn công) |  MSA = 0.48 (<0.5) $\to$ Kém tin cậy  |
+| **Block**        | -0.500   | 0.136        | Thiên về PC1 (phòng thủ tại lưới)  | MSA = 0.82 (Tốt)  | 
+| **Serve**     | -0.535    | -0.363       | Đóng góp mạnh vào PC1 (tấn công)  |  MSA = 0.52 (Trung bình)  |
+| **Dig**        | 0.363      | -0.537        | Đóng góp mạnh vào PC2 (phòng thủ sân sau)   |  MSA = 0.50 (Trung bình)  | 
+| **Receive**        | 0.227     |  -0.633   | Đóng góp chính vào PC2 (đỡ bóng)   |   MSA = 0.45 (<0.5) $\to$ Kém tin cậy
+  |
+
+**Nhận xét:** 
+
+  - **PC1 ("Tấn công - Phòng thủ tại lưới"):** Tương quan âm mạnh với Attack, Serve, Block $\to$ Cầu thủ có điểm cao ở PC1 thiên về tấn công (Attack/Serve) và chắn bóng (Block). Nhưng cần lưu ý rằng Attack có MSA thấp (0.48). 
+  
+  - **PC2 ("Phòng thủ sân sau"):** Tương quan âm mạnh với Dig và Receive $\to$ Cầu thủ có điểm cao ở PC2 giỏi cứu bóng (Dig) và đỡ bóng (Receive). Nhưng cần lưu ý rằng Receive có MSA rất thấp (0.45).
+
+Biểu đồ Score (Phân bố cầu thủ theo PC1-PC2)
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+scores <- as.data.frame(pca_result$x[, 1:2])
+scores$Position <- vnl_data$Position  
+rownames(scores) <- vnl_data$Player   
+
+ggplot(scores, aes(PC1, PC2, color = Position)) +
+  geom_point(size = 3) +
+  geom_text_repel(aes(label = rownames(scores)), 
+                  size = 3, 
+                  max.overlaps = 20) +  
+  stat_ellipse(level = 0.95) +          
+  labs(title = "PCA Score Plot - Phân bố cầu thủ theo PC1 và PC2",
+       x = paste0("PC1 (", round(pca_result$sdev[1]^2 / sum(pca_result$sdev^2) * 100, 1), "%)"),
+       y = paste0("PC2 (", round(pca_result$sdev[2]^2 / sum(pca_result$sdev^2) * 100, 1), "%)")) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+```
+
+Biểu đồ Loading (Đóng góp của biến vào PC1-PC2)
+
+```{r}
+library(factoextra)
+
+fviz_pca_var(pca_result,
+             axes = c(1, 2),            
+             col.var = "contrib",       
+             gradient.cols = c("blue", "green", "red"),
+             repel = TRUE,              
+             title = "PCA Loading Plot - Đóng góp của biến vào PC1 và PC2",
+             legend.title = "Đóng góp (%)")
+```
+
+```{r}
+fviz_pca_biplot(pca_result,
+                col.ind = scores$Position,  # Màu theo vị trí
+                col.var = "darkred",        # Màu cho biến
+                addEllipses = TRUE,         # Vẽ vòng nhóm
+                title = "PCA Biplot - Kết hợp Score và Loading",
+                legend.title = list(color = "Vị trí", fill = "Nhóm"))
+```
+
+Biểu đồ Biplot
+
+```{r}
+# Biplot
+fviz_pca_biplot(pca_result, 
+                col.var = "red",   
+                col.ind = "blue",  
+                repel = TRUE) 
+```
+
+### Kết luận
+
+1. Số thành phần chính cần giữ lại:
+
+Dựa trên biểu đồ và eigenvalue > 1, 2 thành phần chính (PC1 và PC2) là đủ, giải thích 76.17% phương sai dữ liệu (PC1: 41.84%, PC2: 34.33%).
+
+2. Ý nghĩa các thành phần:
+
+ - **PC1 (41.84%) - "Tấn công toàn diện":** 
+ 
+     + Tương quan mạnh với Attack (-0.53) và Serve (-0.54) $\to$ Đại diện cho khả năng tấn công.
+     
+     + Điểm cao: OH (Outside Hitter) và OP (Opposite).
+     
+ - **PC2 (34.33%) - "Phòng thủ sân sau":**
+ 
+     + Tương quan mạnh với Dig (-0.54) và Receive (-0.63) $\to$ Đại diện cho khả năng phòng ngự.
+     
+     + Điểm cao: L (Libero) và MB (Middle Blocker).
+
+3. Vị trí nổi bật trên từng thành phần:
+
+ - **PC1 (Tấn công):** $OP > OH > MB > S \approx L$. 
+ 
+ OP (Opposite): Điểm cao nhất do thiên về tấn công biên. OH (Outside Hitter): Điểm cao thứ nhì, đa năng cả tấn công và phòng thủ. 
+ 
+ - **PC2 (Phòng thủ):** $L > MB > OH > OP \approx S$. 
+ 
+ L (Libero): Điểm cao nhất do chuyên về cứu/đỡ bóng. MB (Middle Blocker): Điểm cao thứ nhì, kết hợp chắn bóng và phòng thủ. 
+
+## K-means clustering
+
+Sử dụng 2 thành phần chính (PC1 và PC2) từ PCA trước đó:
+
+```{r}
+pca_scores <- pca_result$x[, 1:2]  # PC1 và PC2
+```
+
+### Xác định số cụm tối ưu
+
+Sử dụng phương pháp Elbow (Tổng bình phương nội cụm - WSS)
+
+```{r}
+library(factoextra)
+fviz_nbclust(pca_scores, kmeans, method = "wss") +
+  geom_vline(xintercept = 3, linetype = 2, color = "red") +
+  labs(title = "Elbow Method for Optimal k")
+```
+
+Điểm gãy (elbow) xuất hiện tại  $k = 3$. WSS (Tổng bình phương nội cụm) giảm mạnh từ k = 1 đến k = 3, sau đó giảm chậm nên ta chọn số cụm $k=3$.
+
+### Thực hiện K-means clustering 
+
+```{r}
+set.seed(123)  
+kmeans_result <- kmeans(pca_scores, centers = 3, nstart = 25)
+vnl_data$cluster <- as.factor(kmeans_result$cluster)
+```
+
+### Trực quan hóa kết quả 
+
+```{r}
+library(ggplot2)
+ggplot(data.frame(pca_scores), aes(PC1, PC2, color = vnl_data$cluster)) +
+  geom_point(size = 3) +
+  stat_ellipse(level = 0.95) +
+  scale_color_brewer(palette = "Set1", name = "Cluster") +
+  labs(title = "K-means Clustering trên PCA Scores",
+       x = "PC1 (Tấn công)",
+       y = "PC2 (Phòng thủ)") +
+  theme_minimal()
+```
+
+**Phân bố các cụm trên Biểu đồ PCA:**
+
+ - Cụm 1 (Màu đỏ): Tập trung ở góc dương PC1 $\to$ Nhóm tấn công (thiên về Attack/Serve). 
+ 
+ - Cụm 2 (Màu xanh): Tập trung ở góc dương PC2  $\to$ Nhóm phòng thủ (thiên về Dig/Receive). 
+ 
+ - Cụm 3 (Màu lục): Gần gốc tọa độ  $\to$ Nhóm hỗ trợ/đa năng, không nổi bật ở kỹ năng nào. 
+
+
+**Diễn giải kết quả**
+
+```{r}
+library(dplyr)
+cluster_summary <- vnl_data %>%
+  group_by(cluster) %>%
+  summarise(
+    PC1_mean = mean(pca_scores[, 1]),
+    PC2_mean = mean(pca_scores[, 2]),
+    Attack = mean(Attack),
+    Block = mean(Block),
+    Serve = mean(Serve),
+    Dig = mean(Dig),
+    Receive = mean(Receive),
+    n = n()
+  )
+print(cluster_summary)
+```
+
+### Kết luận
+
+1. **Cầu thủ xuất sắc**
+
+```{r}
+library(dplyr)
+
+potential_players <- vnl_data %>%
+  mutate(PC1 = pca_result$x[, 1],
+         PC2 = pca_result$x[, 2]) %>%
+  filter(abs(PC1) > 2.5 | abs(PC2) > 2.0) %>%
+  select(Player, Position, cluster, PC1, PC2, Attack, Block, Serve, Dig, Receive) %>%
+  arrange(desc(abs(PC1) + abs(PC2)))  
+
+print(potential_players)
+```
+
+**Nhận xét:**
+
+ **Top cầu thủ nổi bật**
+
+ - **Nhóm Tấn công (PC1 âm mạnh):** Các OP (Opposite) chiếm ưu thế tuyệt đối về tấn công, đặc biệt Faure Theo có Block lên tới 3.0 - hiếm cầu thủ nào kết hợp được cả Attack lẫn Block xuất sắc như vậy. 
+ 
+ - **Nhóm Phòng thủ (PC2 âm mạnh):**  Các Libero (L) thống trị nhóm phòng thủ, đặc biệt Grebennikov Jenia có Dig 11.44 - cứu bóng cực đỉnh. Ichikawa Yuki (OH) là trường hợp đặc biệt khi xuất sắc cả tấn công lẫn phòng thủ. 
+ 
+ - **Ứng dụng:**
+ 
+    + Tuyển chọn tài năng: 
+    
+        + Ưu tiên Faure Theo (OP) và Abdel-Aziz Nimir (OP) cho vị trí tấn công chủ lực. 
+        
+        + Grebennikov Jenia (L) là lựa chọn số 1 cho phòng ngự. 
+    
+    + Chiến thuật: 
+    
+        + Sử dụng Ichikawa Yuki (OH) làm cầu thủ đa năng trong các tình huống linh hoạt. 
+        
+        + Tận dụng Loser Agustin (MB) cho cả tấn công lẫn chắn bóng. 
+
+2. **Cầu thủ đa năng**
+
+```{r}
+versatile_players <- vnl_data %>%
+  mutate(PC1 = pca_result$x[, 1],
+         PC2 = pca_result$x[, 2]) %>%
+  filter(PC1 > 1.0 & PC2 > 1.0) %>%
+  select(Player, Position, PC1, PC2, Attack, Block, Serve, Dig, Receive)
+
+print(versatile_players)
+```
+
+
+
+3. **Trực quan hóa trên Biplot**
+
+```{r}
+library(ggplot2)
+ggplot(data.frame(pca_scores), aes(PC1, PC2, color = vnl_data$cluster)) +
+  geom_point(size = 3, alpha = 0.6) +
+  geom_point(data = potential_players, aes(PC1, PC2), color = "black", size = 5, shape = 1) +  # Đánh dấu cầu thủ xuất sắc
+  geom_point(data = versatile_players, aes(PC1, PC2), color = "gold", size = 5, shape = 3) +  # Đánh dấu cầu thủ đa năng
+  labs(title = "Cầu thủ tiềm năng trên PCA Biplot",
+       x = "PC1 (Tấn công)",
+       y = "PC2 (Phòng thủ)") +
+  theme_minimal()
+```
+
+**Nhận xét:** Cầu thủ tiềm năng 
+
+Dựa vào biểu đồ biplot: Các cầu thủ nằm ở các vị trí sau có thể là tiềm năng: 
+
+ - Những cầu thủ ở góc phần tư phía trên bên phải (PC1 và PC2 đều cao) - mạnh cả tấn công lẫn phòng thủ
+ 
+ - Những cầu thủ có giá trị PC1 rất cao (tấn công xuất sắc) dù PC2 trung bình 
+ 
+ - Những cầu thủ có giá trị PC2 rất cao (phòng thủ xuất sắc) dù PC1 trung bình
+
+
+
